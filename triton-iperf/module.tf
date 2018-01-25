@@ -22,8 +22,8 @@ data "triton_image" "ubuntu" {
 }
 
 resource "triton_machine" "iperf_server" {
-    name = "iperf-server-tf"
-    package = "g4-highcpu-64G"
+    name = "iperf-${var.region}-server-tf"
+    package = "g4-highcpu-1G"
     image   = "${data.triton_image.ubuntu.id}"
     networks = 
     [
@@ -47,7 +47,7 @@ resource "triton_machine" "iperf_server" {
 }
 
 resource "triton_machine" "iperf_client" {
-    name = "iperf-client-tf"
+    name = "iperf-${var.region}-client-tf"
     package = "g4-highcpu-1G"
     image   = "${data.triton_image.ubuntu.id}"
     networks = 

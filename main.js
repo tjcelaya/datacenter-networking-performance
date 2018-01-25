@@ -10,6 +10,8 @@ const { execSync } = require('child_process')
 const { isPrivate } = require('ip')
 const { iperf3JsonExtractor } = require("./result_extractor")
 
+const { table } = require('table')
+
 const tf_out = execSync('terraform output -json', { encoding: 'utf8' })
 const inv = parse(tf_out)
 
@@ -84,5 +86,5 @@ for (const node in inv) {
 
   // const finalResults = await Promise.all(execs)
 
-  log(`results: ${stringify(results)}`)
+  log(table([keys(results[0]), ...results.map(Object.values)]))
 })()

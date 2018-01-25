@@ -2,14 +2,10 @@ const assert = require('assert')
 const { stringify } = JSON
 const { best } = require('unitz')
 const { log, error } = console
-const { iperf3JsonExtractor } = require("./result_extractor")
 
 module.exports = {
   iperf3JsonExtractor: function (output) {
     try {
-
-      log("streams: " + stringify(output['start']['test_start']))
-
       assert.ok(undefined !== output['start'])
       assert.ok(undefined !== output['start']['test_start'])
       assert.ok(undefined !== output['start']['test_start']['num_streams'])
