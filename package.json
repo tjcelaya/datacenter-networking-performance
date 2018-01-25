@@ -5,10 +5,9 @@
   "main": "main.js",
   "dependencies": {
     "ip": "^1.1.5",
-    "remote-exec": "^0.0.3",
     "ssh-exec": "^2.0.0",
     "stream-to-promise": "^2.2.0",
-    "stream-to-string": "^1.1.0"
+    "unitz": "^0.5.1"
   },
   "devDependencies": {},
   "scripts": {

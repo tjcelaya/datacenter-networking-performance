@@ -4,7 +4,7 @@ terraform {
 
 provider "triton" {
   url = "https://${var.region}.api.${var.base_url}"
-  account = "${var.user}"
+  account = "${var.account}"
   key_id = "${var.key_id}"
 }
 
@@ -23,7 +23,7 @@ data "triton_image" "ubuntu" {
 
 resource "triton_machine" "iperf_server" {
     name = "iperf-server-tf"
-    package = "g4-highcpu-1G"
+    package = "g4-highcpu-64G"
     image   = "${data.triton_image.ubuntu.id}"
     networks = 
     [
