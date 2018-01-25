@@ -26,9 +26,30 @@ module.exports = {
 
     return {
       threads,
-      duration,
+      duration: `${duration}s`,
       bandwidth_sent: `${best(`${bits_per_second_sent} bits`).convert('gbit')} Gbps`,
       bandwidth_recv: `${best(`${bits_per_second_recv} bits`).convert('gbit')} Gbps`,
+    }
+  },
+
+  pingExtractor: function (output) {
+    const byLine = output.trimRight().split(/\n/g)
+    const timingSummary = byLine.pop()
+
+    const [ ping_min, ping_avg, ping_max, ping_mdev, ping_units ] =
+      timingSummary.replace('rtt min\/avg\/max\/mdev = ','').split(/\/| /)
+
+    const packetSummary = byLine.pop()
+
+    const [ ping_packets_tx, ping_packets_rx, ping_packet_loss_percent ] =
+      packetSummary.replace(/[A-z, ]+/g, ',').split(',').slice(0, -1)
+
+    return {
+      ping_min: `${ping_min} ${ping_units}`,
+      ping_avg: `${ping_avg} ${ping_units}`,
+      ping_max: `${ping_max} ${ping_units}`,
+      ping_mdev: `${ping_mdev} ${ping_units}`,
+      ping_packet_loss_percent,
     }
   }
 }

@@ -5,6 +5,8 @@
   "main": "main.js",
   "dependencies": {
     "ip": "^1.1.5",
+    "join-by-keys": "^1.0.0",
+    "minimist": "^1.2.0",
     "ssh-exec": "^2.0.0",
     "stream-to-promise": "^2.2.0",
     "table": "^4.0.2",

@@ -8,9 +8,21 @@ const { log, error } = console
 const { exit } = process
 const { execSync } = require('child_process')
 const { isPrivate } = require('ip')
-const { iperf3JsonExtractor } = require("./result_extractor")
+const { iperf3JsonExtractor, pingExtractor } = require('./result_extractor')
+const joinByKeys = require('join-by-keys')
 
 const { table } = require('table')
+
+const ARGV = require('minimist')(process.argv.slice(2), {
+  boolean: ['private'],
+  default: {
+    private: false,
+    pings: 10
+  }
+})
+
+const ARG_USE_PUBLIC_SERVER_ADDRESS = !ARGV['private']
+const ARG_PING_COUNT = ARGV['pings']
 
 const tf_out = execSync('terraform output -json', { encoding: 'utf8' })
 const inv = parse(tf_out)
@@ -38,7 +50,11 @@ for (const node in inv) {
   if (role === 'client') {
     clients[dc] = ips[0]
   } else {
-    servers[dc] = ips[1]
+    if (ARG_USE_PUBLIC_SERVER_ADDRESS) {
+      servers[dc] = ips[0]
+    } else {
+      servers[dc] = ips[1]
+    }
   }
 }
 
@@ -51,11 +67,11 @@ for (const node in inv) {
 
       log(`${clientDC} (${clientIP}) -> ${serverDC} (${serverIP}) starting`)
 
-      const sshStream = sshExec(
+      const iperfSSHStream = sshExec(
         `TIME_SECONDS=1 /usr/local/bin/terse_iperf_client.sh ${serverIP} 2>&1`,
         `root@${clients[clientDC]}`)
 
-      const sshResult = streamToPromise(sshStream)
+      const iperfSSH = streamToPromise(iperfSSHStream)
         .then(buf => {
           return ((cDC, sDC) => {
             const decoded = buf.toString('utf-8')
@@ -73,9 +89,33 @@ for (const node in inv) {
           exit(1)
         })
 
-      const perfResult = await sshResult
-
+      const perfResult = await iperfSSH
       results.push(perfResult)
+
+      const pingSSHStream = sshExec(
+        `ping -c ${ARG_PING_COUNT} ${serverIP} 2>&1`,
+        `root@${clients[clientDC]}`)
+
+      const pingSSH = streamToPromise(pingSSHStream)
+        .then(buf => {
+          return ((cDC, sDC) => {
+            const decoded = buf.toString('utf-8')
+
+            return {
+              client: cDC,
+              server: sDC,
+              ...pingExtractor(decoded),
+            }
+          })(clientDC, serverDC) // bind them vars in that there closure
+        })
+        .catch(err => {
+          error(`error while awaiting result: ${err.name} (${err.lineNumber}): ${err.message}`)
+          exit(1)
+        })
+
+      const pingResult = await pingSSH
+
+      results.push(pingResult)
 
       log(`${clientDC} -> ${serverDC} completed`)
       log(`${clients[clientDC]} finished`)
@@ -84,7 +124,9 @@ for (const node in inv) {
 
   log(`waiting...`)
 
+  const joinedResults = joinByKeys(results, ['client', 'server'])
+
   // const finalResults = await Promise.all(execs)
 
-  log(table([keys(results[0]), ...results.map(Object.values)]))
+  log(table([keys(joinedResults[0]), ...joinedResults.map(Object.values)]))
 })()
