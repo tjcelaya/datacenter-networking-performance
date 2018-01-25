@@ -17,12 +17,25 @@ const ARGV = require('minimist')(process.argv.slice(2), {
   boolean: ['private'],
   default: {
     private: false,
-    pings: 10
+    iperf_seconds: 10,
+    iperf_threads: 8,
+    pings: 10,
+    hosts: '',
   }
 })
 
 const ARG_USE_PUBLIC_SERVER_ADDRESS = !ARGV['private']
 const ARG_PING_COUNT = ARGV['pings']
+const ARG_IPERF_THREADS = ARGV['iperf_threads']
+const ARG_IPERF_SECONDS = ARGV['iperf_seconds']
+const ARG_HOST_FILTER = ARGV['hosts']
+
+log(`ARG_USE_PUBLIC_SERVER_ADDRESS: ${ARG_USE_PUBLIC_SERVER_ADDRESS}`)
+log(`ARG_PING_COUNT: ${ARG_PING_COUNT}`)
+log(`ARG_IPERF_THREADS: ${ARG_IPERF_THREADS}`)
+log(`ARG_IPERF_SECONDS: ${ARG_IPERF_SECONDS}`)
+log(`ARG_HOST_FILTER: ${ARG_HOST_FILTER}`)
+
 
 const tf_out = execSync('terraform output -json', { encoding: 'utf8' })
 const inv = parse(tf_out)
@@ -37,6 +50,14 @@ const results = []
 
 for (const node in inv) {
   const [ dc, role ] = node.split('_')
+
+  if (ARG_HOST_FILTER !== '') {
+    // a filter was given, skip if it doesn't match
+    if (dc.match(ARG_HOST_FILTER) === null) {
+      continue
+    }
+  }
+
   const ips = inv[node]['value']
 
   log(`dc ${dc} role ${role} ips: ${stringify(ips)}`)
@@ -58,6 +79,9 @@ for (const node in inv) {
   }
 }
 
+log('servers:', servers);
+log('clients:', clients);
+
 (async function() {
   for (const clientDC of keys(clients)) {
     for (const serverDC of keys(servers)) {
@@ -67,9 +91,10 @@ for (const node in inv) {
 
       log(`${clientDC} (${clientIP}) -> ${serverDC} (${serverIP}) starting`)
 
-      const iperfSSHStream = sshExec(
-        `TIME_SECONDS=1 /usr/local/bin/terse_iperf_client.sh ${serverIP} 2>&1`,
-        `root@${clients[clientDC]}`)
+      const iperfEnvs = `TIME_SECONDS=${ARG_IPERF_SECONDS} THREAD_COUNT=${ARG_IPERF_THREADS}`
+      const iperfCmd = `${iperfEnvs} /usr/local/bin/terse_iperf_client.sh ${serverIP} 2>&1`
+
+      const iperfSSHStream = sshExec(iperfCmd, `root@${clients[clientDC]}`)
 
       const iperfSSH = streamToPromise(iperfSSHStream)
         .then(buf => {
