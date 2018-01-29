@@ -1,13 +1,18 @@
 variable "region" {}
 
-variable "servers_per_az" {
-  default = 1
-}
-
 variable "instance_type" {
-  default = "c4.nano"
+  default = "t2.nano"
 }
 
-variable "aws_secret_key" {}
+variable "ssh_user" {}
 
-variable "aws_access_key" {}
+variable "ssh_key_path" {}
+
+variable "availability_zone" {}
+
+variable "vpc_id" {}
+
+variable "private_subnet_id" {}
+
+variable "sg_id" {}
+

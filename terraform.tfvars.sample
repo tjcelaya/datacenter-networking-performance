@@ -1,0 +1,11 @@
+base_url = "joyent.com"
+triton_account = "<user-name>"
+private_network_name = "<cross-az-network>"
+key_id = "<ssh-key-id>"
+package = "g4-highcpu-64G"
+
+aws_instance_type = "t2.nano"
+aws_ssh_key_path = "<path-to-private-key>"
+image_name = "ubuntu-16.04"
+image_version = "20170403"
+aws_ssh_user = "<user-name>"

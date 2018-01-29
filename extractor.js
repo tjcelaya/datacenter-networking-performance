@@ -4,7 +4,8 @@ const { best } = require('unitz')
 const { log, error } = console
 
 module.exports = {
-  iperf3JsonExtractor: function (output) {
+  iperf3Json: function (output) {
+    error('output:', output)
     try {
       assert.ok(undefined !== output['start'])
       assert.ok(undefined !== output['start']['test_start'])
@@ -32,11 +33,11 @@ module.exports = {
     }
   },
 
-  pingExtractor: function (output) {
+  ping: function (output) {
     const byLine = output.trimRight().split(/\n/g)
     const timingSummary = byLine.pop()
 
-    const [ ping_min, ping_avg, ping_max, ping_mdev, ping_units ] =
+    const [ ping_min, ping_avg, ping_max, ping_mdev, ping_units ] = 
       timingSummary.replace('rtt min\/avg\/max\/mdev = ','').split(/\/| /)
 
     const packetSummary = byLine.pop()

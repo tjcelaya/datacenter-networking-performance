@@ -1,7 +1,7 @@
 #!/bin/sh
 
 [ "$#" -ne 1 ] && {
-  echo '{error:"invalid args"}'
+  echo '{"error":"invalid args"}'
   exit 1
 }
 

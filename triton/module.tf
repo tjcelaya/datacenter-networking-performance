@@ -16,15 +16,15 @@ data "triton_network" "private" {
     name = "${var.private_network_name}"
 }
 
-data "triton_image" "ubuntu" {
-    name = "ubuntu-16.04"
-    version = "20170403"
+data "triton_image" "base_image" {
+    name = "${var.image_name}"
+    version = "${var.image_version}"
 }
 
 resource "triton_machine" "iperf_server" {
     name = "iperf-${var.region}-server-tf"
-    package = "g4-highcpu-1G"
-    image   = "${data.triton_image.ubuntu.id}"
+    package = "${var.package}"
+    image   = "${data.triton_image.base_image.id}"
     networks = 
     [
       "${data.triton_network.public.id}",
@@ -38,7 +38,7 @@ resource "triton_machine" "iperf_server" {
     provisioner "remote-exec" {
       inline = [
         "apt-get update -qq",
-        "apt-get install -qq -y iperf3",
+        "apt-get install -yqq iperf3",
         "systemctl daemon-reload",
         "systemctl enable iperf3",
         "systemctl start iperf3",
@@ -48,8 +48,8 @@ resource "triton_machine" "iperf_server" {
 
 resource "triton_machine" "iperf_client" {
     name = "iperf-${var.region}-client-tf"
-    package = "g4-highcpu-1G"
-    image   = "${data.triton_image.ubuntu.id}"
+    package = "${var.package}"
+    image   = "${data.triton_image.base_image.id}"
     networks = 
     [
       "${data.triton_network.public.id}",
@@ -64,7 +64,7 @@ resource "triton_machine" "iperf_client" {
       inline = [
         "chmod +x /usr/local/bin/terse_iperf_client.sh",
         "apt-get update -qq",
-        "apt-get install -qq -y iperf3"
+        "apt-get install -yqq iperf3",
       ]
     }
 }

@@ -1,28 +1,22 @@
-terraform {
-  required_version = ">= 0.10.3"
-}
+# the vpc module doesn't allow passing these directly so just use
+# the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY envs
 
 provider "aws" {
   region = "${var.region}"
-  access_key = "${var.aws_access_key}"
-  secret_key = "${var.aws_secret_key}"
+  # access_key = "${var.access_key}"
+  # secret_key = "${var.secret_key}"
 }
 
-data "aws_availability_zones" "available" {
-  state = "available"
+data "aws_iam_user" "default" {
+  user_name = "${var.ssh_user}"
 }
 
-data "aws_ami" "default" {
+data "aws_ami" "ubuntu" {
   most_recent = true
 
   filter {
     name   = "name"
-    values = ["amzn-ami-hvm-2016.09*"]
-  }
-
-  filter {
-    name   = "architecture"
-    values = ["x86_64"]
+    values = ["ubuntu/images/hvm-ssd/ubuntu-xenial-16.04-amd64-server-*"]
   }
 
   filter {
@@ -30,85 +24,83 @@ data "aws_ami" "default" {
     values = ["hvm"]
   }
 
-  filter {
-    name   = "root-device-type"
-    values = ["ebs"]
-  }
-
-  owners = ["amazon"]
+  owners = ["099720109477"] # Canonical
 }
 
-resource "aws_vpc" "main" {
-  cidr_block                       = "192.168.0.0/16"
-  assign_generated_ipv6_cidr_block = "true"
+data "aws_vpc" "selected" {
+  id = "${var.vpc_id}"
+}
 
+resource "aws_instance" "iperf_server" {
   tags {
-    Name = "iperf-${var.region}"
+    Name = "i-${var.availability_zone}-iperf-server"
+  }
+
+  subnet_id = "${var.private_subnet_id}"
+  vpc_security_group_ids = ["${var.sg_id}"]
+  ami           = "${data.aws_ami.ubuntu.id}"
+  instance_type = "${var.instance_type}"
+  count = 1
+  availability_zone = "${var.availability_zone}"
+
+  key_name = "tjcelaya-tf-aws-rsa"
+
+  connection {
+    type = "ssh"
+    user = "ubuntu"
+    host = "${self.public_ip}"
+    private_key = "${file(var.ssh_key_path)}"
+  }
+
+
+
+  provisioner "file" {
+    source = "conf/iperf3.service"
+    destination = "/tmp/iperf3.service"
+  }
+  provisioner "remote-exec" {
+    inline = [
+    "sudo mv /tmp/iperf3.service /etc/systemd/system/iperf3.service",
+    "sudo apt-get update",
+    "sudo apt-get install -y iperf3",
+    "sudo systemctl daemon-reload",
+    "sudo systemctl enable iperf3",
+    "sudo systemctl start iperf3",
+    ]
   }
 }
 
-resource "aws_subnet" "public" {
-  count                           = "${length(data.aws_availability_zones.available.names)}"
-  vpc_id                          = "${aws_vpc.main.id}"
-  cidr_block                      = "${cidrsubnet(aws_vpc.main.cidr_block, 8, count.index)}"
-  ipv6_cidr_block                 = "${cidrsubnet(aws_vpc.main.ipv6_cidr_block, 8, count.index)}"
-  map_public_ip_on_launch         = true
-  assign_ipv6_address_on_creation = true
-  availability_zone               = "${element(data.aws_availability_zones.available.names, count.index)}"
+resource "aws_instance" "iperf_client" {
+  tags {
+    Name = "i-${var.availability_zone}-iperf-client"
+  }
 
-  tags = {
-    Name = "iperf-${element(data.aws_availability_zones.available.names, count.index)}-public"
+  subnet_id = "${var.private_subnet_id}"
+  vpc_security_group_ids = ["${var.sg_id}"]
+  ami           = "${data.aws_ami.ubuntu.id}"
+  instance_type = "${var.instance_type}"
+  count = 1
+  availability_zone = "${var.availability_zone}"
+
+  key_name = "tjcelaya-tf-aws-rsa"
+
+  connection {
+    type = "ssh"
+    user = "ubuntu"
+    host = "${self.public_ip}"
+    private_key = "${file(var.ssh_key_path)}"
+  }
+
+  provisioner "file" {
+    source = "conf/terse_iperf_client.sh"
+    destination = "/tmp/terse_iperf_client.sh"
+  }
+  provisioner "remote-exec" {
+    inline = [
+    "sudo mv /tmp/terse_iperf_client.sh /usr/local/bin/terse_iperf_client.sh",
+    "sudo chmod +x /usr/local/bin/terse_iperf_client.sh",
+    "sudo apt-get update",
+    "sudo apt-get install -y iperf3",
+    ] 
   }
 }
-
-resource "aws_route_table" "public" {
-  count  = "${length(data.aws_availability_zones.available.names)}"
-  vpc_id = "${aws_vpc.main.id}"
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = "${aws_internet_gateway.default.id}"
-  }
-
-  route {
-    ipv6_cidr_block = "::/0"
-    gateway_id      = "${aws_internet_gateway.default.id}"
-  }
-}
-
-resource "aws_route_table_association" "public" {
-  count          = "${length(data.aws_availability_zones.available.names)}"
-  subnet_id      = "${element(aws_subnet.public.*.id, count.index)}"
-  route_table_id = "${element(aws_route_table.public.*.id, count.index)}"
-}
-
-resource "aws_security_group" "default" {
-  vpc_id = "${aws_vpc.main.id}"
-
-  ingress {
-    from_port        = -1
-    to_port          = -1
-    protocol         = "icmp"
-    cidr_blocks      = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port        = -1
-    to_port          = -1
-    protocol         = "icmpv6"
-    ipv6_cidr_blocks = ["::/0"]
-  }
-}
-
-resource "aws_instance" "server" {
-  instance_type          = "${var.instance_type}"
-  ami                    = "${data.aws_ami.default.id}"
-  subnet_id              = "${element(aws_subnet.public.*.id, count.index)}"
-  ipv6_address_count     = "1"
-  vpc_security_group_ids = ["${aws_security_group.default.id}", "${aws_vpc.main.default_security_group_id}"]
-
-  tags = {
-    Name = "iperf-server-${element(data.aws_availability_zones.available.names, count.index)}-${count.index}"
-  }
-}
-
